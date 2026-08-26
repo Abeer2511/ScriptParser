@@ -62,19 +62,11 @@ def split_clips(text):
     return blocks
 
 
-def main():
-    if len(sys.argv) != 3:
-        print("Usage: python validate_pack.py <pack.md> <nametag_map.json>")
-        sys.exit(1)
-
-    pack_path, nametag_map_path = sys.argv[1], sys.argv[2]
-
-    with open(pack_path, "r", encoding="utf-8") as f:
-        text = f.read()
-
-    with open(nametag_map_path, "r", encoding="utf-8") as f:
-        nametag_map = json.load(f)
-
+def validate_pack(text, nametag_map):
+    """
+    Validate pack text against nametag map.
+    Returns list of problem strings (empty list if valid).
+    """
     # Allowed categories: Character (except Narrator) and Location
     allowed_nametags = set()
     prop_nametags = set()
@@ -154,6 +146,25 @@ def main():
             elif tag not in allowed_nametags:
                 problems.append(f"Clip {clip_id} ('{title}'): references @{tag}, which has no matching "
                                  f"character/location/frame image in the nametag map.")
+
+    return problems
+
+
+def main():
+    if len(sys.argv) != 3:
+        print("Usage: python validate_pack.py <pack.md> <nametag_map.json>")
+        sys.exit(1)
+
+    pack_path, nametag_map_path = sys.argv[1], sys.argv[2]
+
+    with open(pack_path, "r", encoding="utf-8") as f:
+        text = f.read()
+
+    with open(nametag_map_path, "r", encoding="utf-8") as f:
+        nametag_map = json.load(f)
+
+    problems = validate_pack(text, nametag_map)
+    clips = split_clips(text)
 
     if problems:
         print(f"FAIL — {len(problems)} problem(s):\n")

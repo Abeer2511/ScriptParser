@@ -24,7 +24,20 @@ Orchestrates the entire Google Storyboard to Google Flow video prompt pack gener
 
 ---
 
-## Procedure
+## Quick Start (Single-Command Execution)
+
+Run the entire pipeline end-to-end with a single terminal command:
+```bash
+python process_pipeline.py <script_name> [--ar 16:9]
+```
+Or process all scripts in `Scripts/`:
+```bash
+python process_pipeline.py --all
+```
+
+---
+
+## Detailed Step-by-Step Procedure
 
 ### Step 1 — Validate script name and check `Scripts/`
 1. Check the provided `<script_name>`. If not specified, list the available `.json` files in `f:\ScriptParser\Scripts\` and ask the user to provide the script name.
