@@ -63,19 +63,26 @@ python3 <skill_dir>/scripts/scan_nametags.py <root>/Exports/<script_name>/VideoP
 Matches Character, Location, and Prop names against files in `Images/` and indexes
 the `Images/Frame` files.
 
-### Step 4 — Align dialogue to shots
+### Step 4 — Generate character voice profiles & emotive dialogue (LLM Audio Direction)
+The agent generates `Exports/<script_name>/VoiceProfiles.md` using creative audio acting direction:
+1. **Acoustic & Psychological Profiling**: For each character, detail their archetype, timbre, fundamental pitch register, cadence (WPM), and dynamic vocal states across the narrative arc.
+2. **Human-Emotive Dialogue Generation**: Rather than pulling flat text, dynamically rewrite and annotate every dialogue line with naturalistic acting directives and bracketed paralinguistic cues (e.g. `[sigh]`, `[whisper]`, `[gasp of awe]`, `[trembling breath]`, `[voice crack]`, `[breathless chuckle]`, `[cold clinical pause]`, `[sob catch]`).
+3. **TTS Prompt Engineering**: Provide copy-pasteable voice design prompts and recommended engine settings (Stability, Clarity, Style Exaggeration) for ElevenLabs, Gemini Audio, and OpenAI Voice.
+4. Optionally run `python3 <skill_dir>/scripts/generate_voice_profiles.py <root>/Exports/<script_name>` as an initial structural baseline before enriching it.
+
+### Step 5 — Align dialogue to shots
 Walk the Full-Story narrative beats and Scenes in order, assigning dialogue lines
 to the relevant shots based on character presence and visual context.
 
-### Step 5 — Ask about voice-over handling
+### Step 6 — Ask about voice-over handling
 Ask the user regarding spoken audio:
 - Default `deferred` for Narrator (non-diegetic voice-over added in post).
 - Default `native audio` for on-screen characters.
 
-### Step 6 — Ask aspect ratio
+### Step 7 — Ask aspect ratio
 Ask once for the pack: `16:9` (default landscape), `9:16` (vertical), or `1:1`.
 
-### Step 7 — Generate prompt pack & clip files
+### Step 8 — Generate prompt pack & clip files
 Run the generic prompt generator:
 ```bash
 python3 <skill_dir>/scripts/generate_pack.py <root>/Exports/<script_name> --ar 16:9
@@ -87,7 +94,7 @@ This automatically:
 - Generates master markdown in `Exports/<script_name>/VideoPrompts/<script_name>-flow-prompts.md`.
 - Generates individual clip files in `Exports/<script_name>/VideoPrompts/clips/`.
 
-### Step 8 — Validate the pack
+### Step 9 — Validate the pack
 Run:
 ```bash
 python3 <skill_dir>/scripts/validate_pack.py <root>/Exports/<script_name>/VideoPrompts/<script_name>-flow-prompts.md <root>/Exports/<script_name>/VideoPrompts/_nametag_map.json
@@ -99,5 +106,5 @@ Ensures:
 - No `**Starting frame:**` fields.
 - All `@nametag` references resolve to real Character/Location/Frame images.
 
-### Step 9 — Summarize for the user
-Report total clip count, runtime, and output locations.
+### Step 10 — Summarize for the user
+Report total clip count, runtime, and output locations (including VoiceProfiles.md).
