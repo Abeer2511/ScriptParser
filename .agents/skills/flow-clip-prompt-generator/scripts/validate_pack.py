@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """
 validate_pack.py — sanity-checks an assembled Flow prompt pack before it's
-handed back to the user. Catches the mistakes that are easy for an LLM to
-make silently over a long generation run: a duration outside {4,6,8,10}s, an
-aspect ratio that drifted partway through, a required field missing from a
-clip, or a `@nametag` reference that doesn't correspond to any real image.
+handed back to the user. Catches mistakes like:
+- Durations outside {4, 6, 8, 10}s
+- Inconsistent aspect ratios
+- Missing required fields (Duration, Aspect ratio, References, Prompt, Audio)
+- Lingering '**Starting frame:**' lines (starting frames must be ingredients in References)
+- Prohibited references (@Prop or @Narrator)
+- Misspelled or unresolvable @nametag references
 
 Usage:
     python validate_pack.py <pack.md> <nametag_map.json>
 
 Exits 0 with "PASS" if clean, exits 1 and lists every problem otherwise.
-This does NOT try to judge prompt quality/creativity — only the mechanical
-rules that must hold for every clip.
 """
 import sys
 import re
@@ -23,28 +24,20 @@ CLIP_HEADER_RE = re.compile(r"^###\s+Clip\s+([\w.]+)\s+—\s+(.+)$", re.MULTILIN
 DURATION_RE = re.compile(r"\*\*Duration:\*\*\s*(\d+)\s*s", re.IGNORECASE)
 ASPECT_RE = re.compile(r"\*\*Aspect ratio:\*\*\s*([^\n]+)", re.IGNORECASE)
 GLOBAL_ASPECT_RE = re.compile(r"\*\*Aspect ratio:\*\*\s*([^\n]+)")
+STARTING_FRAME_RE = re.compile(r"\*\*Starting\s+frame:\*\*", re.IGNORECASE)
 
 
-def find_nametag_refs(block, allowed_nametags_sorted_desc):
-    """Find every '@...' reference in a block of text.
-
-    Nametags are literal filename stems and may contain spaces (e.g. a file
-    named "Patent Office.png" -> nametag "Patent Office"), so a fixed
-    no-whitespace regex would truncate those. Instead, at every '@' position,
-    greedily try the longest *known* nametag that starts there; if none of
-    the known nametags match, fall back to capturing the next contiguous
-    non-space/punctuation token so the mismatch can still be reported.
-    """
+def find_nametag_refs(block, known_nametags_sorted_desc):
+    """Find every '@...' reference in a block of text."""
     refs = []
     i = 0
-    n = len(block)
     while True:
         at = block.find("@", i)
         if at == -1:
             break
         rest = block[at + 1:]
         found = None
-        for tag in allowed_nametags_sorted_desc:
+        for tag in known_nametags_sorted_desc:
             if rest.startswith(tag):
                 found = tag
                 break
@@ -82,11 +75,26 @@ def main():
     with open(nametag_map_path, "r", encoding="utf-8") as f:
         nametag_map = json.load(f)
 
-    allowed_nametags = {info["nametag"] for info in nametag_map.get("matched", {}).values()}
-    # Frame nametags aren't asset-keyed, so allow any literal frame filename stem too.
+    # Allowed categories: Character (except Narrator) and Location
+    allowed_nametags = set()
+    prop_nametags = set()
+
+    for asset_name, info in nametag_map.get("matched", {}).items():
+        cat = info.get("category", "")
+        tag = info.get("nametag", "")
+        if cat == "Prop":
+            prop_nametags.add(tag)
+        elif cat in ("Character", "Location"):
+            if tag.lower() != "narrator":
+                allowed_nametags.add(tag)
+
+    # Frame stems from frame_index
     frame_stems = {re.sub(r"\.[A-Za-z0-9]+$", "", fn) for fn in nametag_map.get("frame_index", [])}
     allowed_nametags |= frame_stems
-    allowed_nametags_sorted_desc = sorted(allowed_nametags, key=len, reverse=True)
+
+    # For regex search, combine all known nametags
+    all_known_tags = allowed_nametags | prop_nametags | {"Narrator"}
+    all_known_sorted_desc = sorted(all_known_tags, key=len, reverse=True)
 
     problems = []
 
@@ -120,6 +128,9 @@ def main():
             problems.append(f"Clip {clip_id} ('{title}'): aspect ratio '{asp_m.group(1).strip()}' "
                              f"does not match the pack's global '{global_aspect}'.")
 
+        if "**References:**" not in block:
+            problems.append(f"Clip {clip_id} ('{title}'): missing **References:** field.")
+
         if "**Prompt:**" not in block:
             problems.append(f"Clip {clip_id} ('{title}'): missing **Prompt:** section.")
 
@@ -127,10 +138,22 @@ def main():
             problems.append(f"Clip {clip_id} ('{title}'): prompt has no explicit Audio: directive "
                              f"(every clip must state either the dialogue to speak or that it's silent/ambient-only).")
 
-        for tag in find_nametag_refs(block, allowed_nametags_sorted_desc):
-            if tag not in allowed_nametags:
+        # Disallow separate Starting frame field
+        if STARTING_FRAME_RE.search(block):
+            problems.append(f"Clip {clip_id} ('{title}'): contains separate '**Starting frame:**' field. "
+                             f"In Google Flow, frames must be passed as ingredient references in **References:**.")
+
+        # Check all @tag references
+        for tag in find_nametag_refs(block, all_known_sorted_desc):
+            if tag.lower() == "narrator":
+                problems.append(f"Clip {clip_id} ('{title}'): references @Narrator. "
+                                 f"Narrator is non-diegetic VO only and must not be tagged as an image reference.")
+            elif tag in prop_nametags:
+                problems.append(f"Clip {clip_id} ('{title}'): references prop @{tag}. "
+                                 f"Props are baked into frame generations and must not be referenced as ingredients.")
+            elif tag not in allowed_nametags:
                 problems.append(f"Clip {clip_id} ('{title}'): references @{tag}, which has no matching "
-                                 f"image in the nametag map (invented or misspelled reference?).")
+                                 f"character/location/frame image in the nametag map.")
 
     if problems:
         print(f"FAIL — {len(problems)} problem(s):\n")
@@ -139,7 +162,7 @@ def main():
         sys.exit(1)
     else:
         print(f"PASS — {len(clips)} clips validated. All durations in {sorted(ALLOWED_DURATIONS)}, "
-              f"aspect ratio consistent, every @nametag resolves to a real image.")
+              f"aspect ratio consistent, frames used as ingredients, props and narrator excluded from references.")
         sys.exit(0)
 
 
