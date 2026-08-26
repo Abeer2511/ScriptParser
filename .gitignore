@@ -2,6 +2,7 @@
 Exports/
 !Exports/.gitkeep
 
+Scripts/
 # Ignore all image directories and image files
 **/Images/
 *.jpg
