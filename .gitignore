@@ -1,0 +1,28 @@
+# Exports and script output directories
+Exports/
+!Exports/.gitkeep
+
+# Ignore all image directories and image files
+**/Images/
+*.jpg
+*.jpeg
+*.png
+*.webp
+
+# .NET Build outputs
+bin/
+obj/
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# OS generated files
+.DS_Store
+Thumbs.db
